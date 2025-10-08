@@ -147,9 +147,54 @@ export default class NextProjectTasksPlugin extends Plugin {
     const content = await this.app.vault.read(file);
     const lines = content.split("\n");
 
-    const updated = lines.map((line) => {
+    // Regexes for decorations
+    const RECUR_REGEX = /@recur\(([^)]+)\)/i;
+    const START_REGEX = /@start\(([^)]+)\)/i;
+
+    let updated = lines.map((line) => {
       if (line.trim().startsWith("- [ ]") && line.includes(taskText)) {
-        return line.replace("- [ ]", "- [x]");
+        // Check for recurrence
+        const recurMatch = line.match(RECUR_REGEX);
+        if (recurMatch) {
+          // Parse interval: e.g. 7d, 2w, 1m, 1y
+          const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
+          let nextStart = null;
+          if (interval) {
+            // Find current start date (or use today)
+            let startDate = new Date();
+            const startMatch = line.match(START_REGEX);
+            if (startMatch) {
+              const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (iso) {
+                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
+              }
+            }
+            // Add interval
+            const n = parseInt(interval[1], 10);
+            switch (interval[2].toLowerCase()) {
+              case 'd': startDate.setDate(startDate.getDate() + n); break;
+              case 'w': startDate.setDate(startDate.getDate() + n * 7); break;
+              case 'm': startDate.setMonth(startDate.getMonth() + n); break;
+              case 'y': startDate.setFullYear(startDate.getFullYear() + n); break;
+            }
+            // Format YYYY-MM-DD
+            nextStart = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
+          }
+          // Mark as uncompleted and update @start
+          let newLine = line.replace("- [ ]", "- [ ]"); // keep as uncompleted
+          // Replace or add @start(...)
+          if (nextStart) {
+            if (line.match(START_REGEX)) {
+              newLine = newLine.replace(START_REGEX, `@start(${nextStart})`);
+            } else {
+              newLine = newLine.trimEnd() + ` @start(${nextStart})`;
+            }
+          }
+          return newLine;
+        } else {
+          // Not recurring: mark as done
+          return line.replace("- [ ]", "- [x]");
+        }
       }
       return line;
     });
