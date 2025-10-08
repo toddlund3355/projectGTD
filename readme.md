@@ -1,3 +1,17 @@
+## 🆕 Individual Task Notes
+
+You can configure a second tag (default: `#individualtasks`) in the plugin settings. If a note contains this tag, all eligible tasks in that note will appear in the sidebar, regardless of project status. Tasks are still filtered by start date.
+
+**Settings:**
+- `Project Tag`: Only the next task from each note with this tag will appear.
+- `Individual Task Tag`: All eligible tasks from notes with this tag will appear.
+
+**Example:**
+```
+- [ ] Buy groceries #individualtasks
+- [ ] Call mom #individualtasks @start(2025-10-10)
+```
+If the note contains `#individualtasks`, both tasks will show (unless filtered by start date).
 # Task Decoration Syntax (TDSL) — Summary
 
 A lightweight syntax for decorating Markdown tasks in Obsidian with metadata

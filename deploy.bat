@@ -1,0 +1,3 @@
+call npm run build
+echo copying ...
+copy ".\dist\main.js" "C:\Users\todd\My Drive\DriveSyncFiles\daytoday\.obsidian\plugins\next-project-tasks\"

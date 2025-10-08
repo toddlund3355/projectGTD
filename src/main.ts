@@ -1,11 +1,14 @@
 import { App, Modal, Notice, Plugin, TFile } from 'obsidian';
 import { parseTasks } from './taskUtils';
+import { NextProjectTasksSettingTab, DEFAULT_SETTINGS, NextProjectTasksSettings } from './settings';
 
 const VIEW_TYPE = "next-project-tasks-view";
 
 export default class NextProjectTasksPlugin extends Plugin {
+  private refreshDebounceTimeout: any = null;
+  settings: NextProjectTasksSettings;
   async onload() {
-    // await this.loadSettings();
+    await this.loadSettings();
 
     // Register the sidebar view
     this.registerView(VIEW_TYPE, (leaf) => new NextTasksView(leaf, this));
@@ -18,9 +21,166 @@ export default class NextProjectTasksPlugin extends Plugin {
     // Add command (Command Palette)
     this.addCommand({
       id: "show-next-project-tasks",
-      name: "Show next tasks from #projects",
+      name: `Show next tasks from ${this.settings.projectTag}`,
       callback: () => this.activateView()
     });
+
+    // Add settings tab
+    this.addSettingTab(new NextProjectTasksSettingTab(this.app, this));
+
+    // Listen for file changes to handle recurrence when tasks are checked in the note
+    this.registerEvent(
+      this.app.vault.on('modify', async (file) => {
+        if (!(file instanceof TFile) || file.extension !== 'md') return;
+        const content = await this.app.vault.read(file);
+        const tag = (this.settings.projectTag || "#projects").toLowerCase();
+        const individualTag = (this.settings.individualTaskTag || "#individualtasks").toLowerCase();
+        const contentLower = content.toLowerCase();
+        if (!contentLower.includes(tag) && !contentLower.includes(individualTag)) return;
+        const tasks = parseTasks(content);
+        const lines = content.split('\n');
+        let changed = false;
+        const today = new Date();
+        const ymd = today.getFullYear() + '-' + (today.getMonth() + 1).toString().padStart(2, '0') + '-' + today.getDate().toString().padStart(2, '0');
+        for (const task of tasks) {
+          if (task.done && task.recur) {
+            const line = lines[task.line];
+            if (line && line.trim().startsWith('- [x]')) {
+              let shouldProcess = true;
+              const startMatch = line.match(/@start\(([^)]+)\)/i);
+              if (startMatch) {
+                const startDate = startMatch[1];
+                if (startDate > ymd) shouldProcess = false;
+              }
+              if (shouldProcess) {
+                const RECUR_REGEX = /@recur\(([^)]+)\)/i;
+                const START_REGEX = /@start\(([^)]+)\)/i;
+                const recurMatch = line.match(RECUR_REGEX);
+                let nextStart = null;
+                if (recurMatch) {
+                  const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
+                  const monthlyDay = recurMatch[1].match(/^monthly,\s*day=(\d+|last)$/i);
+                  const yearlyDay = recurMatch[1].match(/^yearly,\s*month=(\d{1,2}|[a-z]{3}),\s*day=(\d+|last)$/i);
+                  const weekdayRecur = recurMatch[1].match(/^((?:mon|tue|wed|thu|fri|sat|sun)(?:,(?:mon|tue|wed|thu|fri|sat|sun))*)$/i);
+                  let startDate = new Date();
+                  const startMatch = line.match(START_REGEX);
+                  if (startMatch) {
+                    const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    if (iso) {
+                      startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
+                    }
+                  }
+                  if (interval) {
+                    const n = parseInt(interval[1], 10);
+                    switch (interval[2].toLowerCase()) {
+                      case 'd': startDate.setDate(startDate.getDate() + n); break;
+                      case 'w': startDate.setDate(startDate.getDate() + n * 7); break;
+                      case 'm': startDate.setMonth(startDate.getMonth() + n); break;
+                      case 'y': startDate.setFullYear(startDate.getFullYear() + n); break;
+                    }
+                    nextStart = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
+                  } else if (monthlyDay) {
+                    let year = startDate.getFullYear();
+                    let month = startDate.getMonth() + 1;
+                    if (month === 12) {
+                      year += 1;
+                      month = 1;
+                    } else {
+                      month += 1;
+                    }
+                    let day = 1;
+                    if (monthlyDay[1] === 'last') {
+                      day = new Date(year, month, 0).getDate();
+                    } else {
+                      day = Math.min(parseInt(monthlyDay[1], 10), new Date(year, month, 0).getDate());
+                    }
+                    nextStart = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                  } else if (yearlyDay) {
+                    let year = startDate.getFullYear() + 1;
+                    let monthStr = yearlyDay[1];
+                    let monthNum;
+                    if (/^\d+$/.test(monthStr)) {
+                      monthNum = parseInt(monthStr, 10);
+                    } else {
+                      const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                      monthNum = monthNames.indexOf(monthStr.toLowerCase()) + 1;
+                    }
+                    let day = 1;
+                    if (yearlyDay[2] === 'last') {
+                      day = new Date(year, monthNum, 0).getDate();
+                    } else {
+                      day = Math.min(parseInt(yearlyDay[2], 10), new Date(year, monthNum, 0).getDate());
+                    }
+                    nextStart = `${year}-${monthNum.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                  } else if (weekdayRecur) {
+                    const weekdays = weekdayRecur[1].split(',').map(w => w.trim().toLowerCase());
+                    const weekdayMap = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
+                    let minDiff = 8;
+                    let nextDate = null;
+                    const currentDay = startDate.getDay();
+                    for (const w of weekdays) {
+                      const targetDay = weekdayMap[w];
+                      if (typeof targetDay === 'number') {
+                        let diff = (targetDay - currentDay + 7) % 7;
+                        if (diff === 0) diff = 7;
+                        if (diff < minDiff) {
+                          minDiff = diff;
+                          nextDate = new Date(startDate);
+                          nextDate.setDate(startDate.getDate() + diff);
+                        }
+                      }
+                    }
+                    if (nextDate) {
+                      nextStart = `${nextDate.getFullYear()}-${(nextDate.getMonth() + 1).toString().padStart(2, '0')}-${nextDate.getDate().toString().padStart(2, '0')}`;
+                    }
+                  }
+                  let newLine = line.replace("- [x]", "- [ ]");
+                  if (nextStart) {
+                    if (line.match(START_REGEX)) {
+                      newLine = newLine.replace(START_REGEX, `@start(${nextStart})`);
+                    } else {
+                      newLine = newLine.trimEnd() + ` @start(${nextStart})`;
+                    }
+                  }
+                  lines[task.line] = newLine;
+                  changed = true;
+                }
+              }
+            }
+          }
+        }
+        if (changed) {
+          await this.app.vault.modify(file, lines.join('\n'));
+        }
+        // Debounce sidebar refresh to avoid duplicate tasks from rapid file changes
+        if (this.refreshDebounceTimeout) {
+          clearTimeout(this.refreshDebounceTimeout);
+        }
+        this.refreshDebounceTimeout = setTimeout(() => {
+          this.refreshAllViews?.();
+        }, 100);
+      })
+    );
+  }
+
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+
+  async saveSettings() {
+    await this.saveData(this.settings);
+  }
+
+  refreshAllViews() {
+    // Refresh all sidebar views
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    for (const leaf of leaves) {
+      // Cast to NextTasksView to access renderTasks
+      const view = leaf.view as any;
+      if (view && typeof view.renderTasks === 'function') {
+        view.renderTasks();
+      }
+    }
   }
 
   async activateView() {
@@ -38,9 +198,10 @@ export default class NextProjectTasksPlugin extends Plugin {
   // ✅ Here's where getNextTasks() goes:
   async getNextTasks() {
     const files = this.app.vault.getMarkdownFiles();
-    const tag = "#projects";
+    const tag = (this.settings.projectTag || "#projects").toLowerCase();
+    const individualTag = (this.settings.individualTaskTag || "#individualtasks").toLowerCase();
     // Add priority to the result
-    const results: { file: TFile; task: string; priority: number }[] = [];
+    const results: { file: TFile; task: string; priority: number; isProject: boolean }[] = [];
 
     // Helper to extract priority from a string
     function extractPriority(str: string): number {
@@ -71,33 +232,57 @@ export default class NextProjectTasksPlugin extends Plugin {
       return null;
     }
 
+    const seen = new Set();
     for (const file of files) {
       const content = await this.app.vault.read(file);
-      if (!content.includes(tag)) continue;
+      const contentLower = content.toLowerCase();
+      const hasProjectTag = contentLower.includes(tag);
+      const hasIndividualTag = contentLower.includes(individualTag);
+      if (!hasProjectTag && !hasIndividualTag) continue;
 
       // Get project-level priority
       const projectPriority = extractPriority(content);
-
       const tasks = parseTasks(content); // from your taskUtils.ts
-      // Only consider tasks that are not done and not in the future
-      const nextTask = tasks.find((t) => {
+
+      // Helper: eligible (not done, not future)
+      const eligible = (t) => {
         if (t.done) return false;
         if (t.start) {
           const startYMD = parseYMD(t.start);
           if (startYMD && startYMD > todayYMD) return false;
         }
         return true;
-      });
+      };
 
-      if (nextTask) {
-        // Check for priority in the task text, else use project, else default
-        let taskPriority = extractPriority(nextTask.text);
-        if (!nextTask.text.match(/#p[1-7]\b/i)) {
-          taskPriority = projectPriority;
+      if (hasIndividualTag) {
+        // Show all eligible tasks
+        tasks.filter(eligible).forEach((task) => {
+          let taskPriority = extractPriority(task.text);
+          if (!task.text.match(/#p[1-7]\b/i)) {
+            taskPriority = projectPriority;
+          }
+          if (!taskPriority) taskPriority = 4;
+          const key = file.path + '|' + task.text;
+          if (!seen.has(key)) {
+            results.push({ file, task: task.text, priority: taskPriority, isProject: false });
+            seen.add(key);
+          }
+        });
+      } else if (hasProjectTag) {
+        // Show only the next eligible task
+        const nextTask = tasks.find(eligible);
+        if (nextTask) {
+          let taskPriority = extractPriority(nextTask.text);
+          if (!nextTask.text.match(/#p[1-7]\b/i)) {
+            taskPriority = projectPriority;
+          }
+          if (!taskPriority) taskPriority = 4;
+          const key = file.path + '|' + nextTask.text;
+          if (!seen.has(key)) {
+            results.push({ file, task: nextTask.text, priority: taskPriority, isProject: true });
+            seen.add(key);
+          }
         }
-        if (!taskPriority) taskPriority = 4;
-        console.log(`[Priority Debug] File: ${file.basename}, Task: ${nextTask.text}, Priority: #p${taskPriority}`);
-        results.push({ file, task: nextTask.text, priority: taskPriority });
       }
     }
     return results;
@@ -382,17 +567,10 @@ class NextTasksView extends ItemView {
     return "Next Project Tasks";
   }
 
+
   async onOpen() {
     const container = this.containerEl.children[1];
     container.empty();
-
-    // Title and refresh button
-    const header = container.createEl("div", { cls: "next-tasks-header" });
-    header.createEl("h2", { text: "Next Tasks (#projects)" });
-
-    const refreshBtn = header.createEl("button", { text: "🔄 Refresh" });
-    refreshBtn.addEventListener("click", () => this.renderTasks());
-
     // Render the first time
     await this.renderTasks();
   }
@@ -400,8 +578,13 @@ class NextTasksView extends ItemView {
   async renderTasks() {
     console.log("rendertasks called");
     const container = this.containerEl.children[1];
-    const existingList = container.querySelector("ul");
-    if (existingList) existingList.remove();
+    container.empty();
+
+    // Title and refresh button (always update header)
+    const header = container.createEl("div", { cls: "next-tasks-header" });
+    header.createEl("h2", { text: `Next Tasks (${this.plugin.settings.projectTag})` });
+    const refreshBtn = header.createEl("button", { text: "🔄 Refresh" });
+    refreshBtn.addEventListener("click", () => this.renderTasks());
 
     let results = await this.plugin.getNextTasks();
 
@@ -410,10 +593,11 @@ class NextTasksView extends ItemView {
 
     const ul = container.createEl("ul");
 
-    results.forEach(({ file, task, priority }) => {
+    results.forEach(({ file, task, priority, isProject }) => {
       const li = ul.createEl("li", { cls: "next-task-item" });
       const checkbox = li.createEl("input", { type: "checkbox" });
-      const label = li.createEl("label", { text: `${file.basename}: ${task}` });
+      const labelText = isProject ? `${file.basename}: ${task}` : task;
+      const label = li.createEl("label", { text: labelText });
 
       // Optionally, add a visual indicator for priority (e.g., tooltip)
       label.setAttr("title", `Priority: #p${priority}`);
