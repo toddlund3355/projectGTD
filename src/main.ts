@@ -156,9 +156,12 @@ export default class NextProjectTasksPlugin extends Plugin {
         // Check for recurrence
         const recurMatch = line.match(RECUR_REGEX);
         if (recurMatch) {
-          // Parse interval: e.g. 7d, 2w, 1m, 1y
-          const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
           let nextStart = null;
+          // 1. Simple interval: 7d, 2w, 1m, 1y
+          const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
+          // 2. Monthly day: monthly,day=15 or monthly,day=last
+          const monthlyDay = recurMatch[1].match(/^monthly,\s*day=(\d+|last)$/i);
+
           if (interval) {
             // Find current start date (or use today)
             let startDate = new Date();
@@ -179,6 +182,34 @@ export default class NextProjectTasksPlugin extends Plugin {
             }
             // Format YYYY-MM-DD
             nextStart = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
+          } else if (monthlyDay) {
+            // Find current start date (or use today)
+            let startDate = new Date();
+            const startMatch = line.match(START_REGEX);
+            if (startMatch) {
+              const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (iso) {
+                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
+              }
+            }
+            // Move to next month
+            let year = startDate.getFullYear();
+            let month = startDate.getMonth() + 1; // JS: 0=Jan, 11=Dec
+            if (month === 12) {
+              year += 1;
+              month = 1;
+            } else {
+              month += 1;
+            }
+            let day = 1;
+            if (monthlyDay[1] === 'last') {
+              // Last day of next month
+              day = new Date(year, month, 0).getDate();
+            } else {
+              // Nth day of next month
+              day = Math.min(parseInt(monthlyDay[1], 10), new Date(year, month, 0).getDate());
+            }
+            nextStart = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
           }
           // Mark as uncompleted and update @start
           let newLine = line.replace("- [ ]", "- [ ]"); // keep as uncompleted
