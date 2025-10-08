@@ -49,18 +49,24 @@ export default class NextProjectTasksPlugin extends Plugin {
       return 4; // default priority
     }
 
+    // Helper to get local YMD as string
+    function toLocalYMD(date) {
+      return date.getFullYear() + '-' + (date.getMonth() + 1).toString().padStart(2, '0') + '-' + date.getDate().toString().padStart(2, '0');
+    }
     const now = new Date();
-    function parseDate(str) {
+    const todayYMD = toLocalYMD(now);
+    // Parse a date string (YYYY-MM-DD or today+Nd) and return YMD string
+    function parseYMD(str) {
       if (!str) return null;
       // Accept YYYY-MM-DD or YYYY-MM-DDThh:mm
-      const iso = str.match(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/);
-      if (iso) return new Date(str);
+      const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
       // Accept today+Nd
       const rel = str.match(/^today\+(\d+)d$/i);
       if (rel) {
         const d = new Date();
         d.setDate(d.getDate() + parseInt(rel[1], 10));
-        return d;
+        return toLocalYMD(d);
       }
       return null;
     }
@@ -77,8 +83,8 @@ export default class NextProjectTasksPlugin extends Plugin {
       const nextTask = tasks.find((t) => {
         if (t.done) return false;
         if (t.start) {
-          const startDate = parseDate(t.start);
-          if (startDate && startDate > now) return false;
+          const startYMD = parseYMD(t.start);
+          if (startYMD && startYMD > todayYMD) return false;
         }
         return true;
       });
