@@ -49,6 +49,22 @@ export default class NextProjectTasksPlugin extends Plugin {
       return 4; // default priority
     }
 
+    const now = new Date();
+    function parseDate(str) {
+      if (!str) return null;
+      // Accept YYYY-MM-DD or YYYY-MM-DDThh:mm
+      const iso = str.match(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/);
+      if (iso) return new Date(str);
+      // Accept today+Nd
+      const rel = str.match(/^today\+(\d+)d$/i);
+      if (rel) {
+        const d = new Date();
+        d.setDate(d.getDate() + parseInt(rel[1], 10));
+        return d;
+      }
+      return null;
+    }
+
     for (const file of files) {
       const content = await this.app.vault.read(file);
       if (!content.includes(tag)) continue;
@@ -57,7 +73,15 @@ export default class NextProjectTasksPlugin extends Plugin {
       const projectPriority = extractPriority(content);
 
       const tasks = parseTasks(content); // from your taskUtils.ts
-      const nextTask = tasks.find((t) => !t.done);
+      // Only consider tasks that are not done and not in the future
+      const nextTask = tasks.find((t) => {
+        if (t.done) return false;
+        if (t.start) {
+          const startDate = parseDate(t.start);
+          if (startDate && startDate > now) return false;
+        }
+        return true;
+      });
 
       if (nextTask) {
         // Check for priority in the task text, else use project, else default
