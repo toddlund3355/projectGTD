@@ -157,13 +157,14 @@ export default class NextProjectTasksPlugin extends Plugin {
         const recurMatch = line.match(RECUR_REGEX);
         if (recurMatch) {
           let nextStart = null;
-          // 1. Simple interval: 7d, 2w, 1m, 1y
+          // Recurrence pattern matches
           const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
-          // 2. Monthly day: monthly,day=15 or monthly,day=last
           const monthlyDay = recurMatch[1].match(/^monthly,\s*day=(\d+|last)$/i);
+          const yearlyDay = recurMatch[1].match(/^yearly,\s*month=(\d{1,2}|[a-z]{3}),\s*day=(\d+|last)$/i);
+          const weekdayRecur = recurMatch[1].match(/^((?:mon|tue|wed|thu|fri|sat|sun)(?:,(?:mon|tue|wed|thu|fri|sat|sun))*)$/i);
 
           if (interval) {
-            // Find current start date (or use today)
+            // ...existing code for interval...
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
             if (startMatch) {
@@ -172,7 +173,6 @@ export default class NextProjectTasksPlugin extends Plugin {
                 startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
               }
             }
-            // Add interval
             const n = parseInt(interval[1], 10);
             switch (interval[2].toLowerCase()) {
               case 'd': startDate.setDate(startDate.getDate() + n); break;
@@ -180,10 +180,9 @@ export default class NextProjectTasksPlugin extends Plugin {
               case 'm': startDate.setMonth(startDate.getMonth() + n); break;
               case 'y': startDate.setFullYear(startDate.getFullYear() + n); break;
             }
-            // Format YYYY-MM-DD
             nextStart = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
           } else if (monthlyDay) {
-            // Find current start date (or use today)
+            // ...existing code for monthlyDay...
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
             if (startMatch) {
@@ -192,9 +191,8 @@ export default class NextProjectTasksPlugin extends Plugin {
                 startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
               }
             }
-            // Move to next month
             let year = startDate.getFullYear();
-            let month = startDate.getMonth() + 1; // JS: 0=Jan, 11=Dec
+            let month = startDate.getMonth() + 1;
             if (month === 12) {
               year += 1;
               month = 1;
@@ -203,13 +201,70 @@ export default class NextProjectTasksPlugin extends Plugin {
             }
             let day = 1;
             if (monthlyDay[1] === 'last') {
-              // Last day of next month
               day = new Date(year, month, 0).getDate();
             } else {
-              // Nth day of next month
               day = Math.min(parseInt(monthlyDay[1], 10), new Date(year, month, 0).getDate());
             }
             nextStart = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          } else if (yearlyDay) {
+            // ...existing code for yearlyDay...
+            let startDate = new Date();
+            const startMatch = line.match(START_REGEX);
+            if (startMatch) {
+              const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (iso) {
+                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
+              }
+            }
+            let year = startDate.getFullYear() + 1; // always next year
+            let monthStr = yearlyDay[1];
+            let monthNum: number;
+            if (/^\d+$/.test(monthStr)) {
+              monthNum = parseInt(monthStr, 10);
+            } else {
+              const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+              monthNum = monthNames.indexOf(monthStr.toLowerCase()) + 1;
+            }
+            let day = 1;
+            if (yearlyDay[2] === 'last') {
+              day = new Date(year, monthNum, 0).getDate();
+            } else {
+              day = Math.min(parseInt(yearlyDay[2], 10), new Date(year, monthNum, 0).getDate());
+            }
+            nextStart = `${year}-${monthNum.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          } else if (weekdayRecur) {
+            // ...new code for weekday recurrence...
+            // Parse weekdays
+            const weekdays = weekdayRecur[1].split(',').map(w => w.trim().toLowerCase());
+            const weekdayMap = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
+            // Find current start date (or use today)
+            let startDate = new Date();
+            const startMatch = line.match(START_REGEX);
+            if (startMatch) {
+              const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (iso) {
+                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
+              }
+            }
+            // Find the soonest next weekday
+            let minDiff = 8; // max days in week + 1
+            let nextDate = null;
+            const currentDay = startDate.getDay(); // 0=Sun, 1=Mon, ...
+            for (const w of weekdays) {
+              const targetDay = weekdayMap[w];
+              if (typeof targetDay === 'number') {
+                let diff = (targetDay - currentDay + 7) % 7;
+                if (diff === 0) diff = 7; // always go to next occurrence
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  nextDate = new Date(startDate);
+                  nextDate.setDate(startDate.getDate() + diff);
+                }
+              }
+            }
+            if (nextDate) {
+              nextStart = `${nextDate.getFullYear()}-${(nextDate.getMonth() + 1).toString().padStart(2, '0')}-${nextDate.getDate().toString().padStart(2, '0')}`;
+            }
           }
           // Mark as uncompleted and update @start
           let newLine = line.replace("- [ ]", "- [ ]"); // keep as uncompleted
