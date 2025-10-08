@@ -1,0 +1,9 @@
+{
+  "id": "next-project-tasks",
+  "name": "Next Project Tasks",
+  "version": "0.0.1",
+  "minAppVersion": "1.4.0",
+  "author": "Your Name",
+  "description": "Shows the next unfinished task from each note tagged #projects.",
+  "main": "dist/main.js"
+}
