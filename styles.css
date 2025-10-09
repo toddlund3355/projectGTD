@@ -1,3 +1,14 @@
+/* Remove list style and padding for task panel list */
+.next-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+/* Strikethrough for completed tasks in the modal */
+.next-task-done {
+  text-decoration: line-through;
+}
+
 .next-task-item:hover {
   text-decoration: underline;
 }

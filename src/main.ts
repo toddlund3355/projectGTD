@@ -175,9 +175,9 @@ export default class NextProjectTasksPlugin extends Plugin {
     // Refresh all sidebar views
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
     for (const leaf of leaves) {
-      // Cast to NextTasksView to access renderTasks
-      const view = leaf.view as any;
-      if (view && typeof view.renderTasks === 'function') {
+      const view = leaf.view;
+      // Type guard: check if view is NextTasksView
+      if (view instanceof NextTasksView) {
         view.renderTasks();
       }
     }
@@ -478,9 +478,7 @@ class NextTasksModal extends Modal {
     contentEl.empty();
     contentEl.createEl('h2', { text: 'Next Tasks in #projects' });
 
-    const ul = contentEl.createEl('ul');
-    ul.style.listStyle = 'none';
-    ul.style.paddingLeft = '0';
+    const ul = contentEl.createEl('ul', { cls: 'next-task-list' });
 
     this.results.forEach(({ file, task }) => {
       const li = ul.createEl('li', { cls: 'next-task-item' });
@@ -508,7 +506,7 @@ class NextTasksModal extends Modal {
       checkbox.addEventListener('change', async () => {
         if (checkbox.checked) {
           await this.markTaskDone(file, task);
-          label.style.textDecoration = 'line-through';
+          label.classList.add('next-task-done');
         }
       });
     });
