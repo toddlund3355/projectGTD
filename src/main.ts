@@ -38,7 +38,9 @@ export default class NextProjectTasksPlugin extends Plugin {
         const tag = (this.settings.projectTag || "#projects").toLowerCase();
         const individualTag = (this.settings.individualTaskTag || "#individualtasks").toLowerCase();
         const contentLower = content.toLowerCase();
-        if (!contentLower.includes(tag) && !contentLower.includes(individualTag)) return;
+        const tagRegex = new RegExp(`\\b${tag}\\b`, 'i');
+        const individualTagRegex = new RegExp(`\\b${individualTag}\\b`, 'i');
+        if (!tagRegex.test(contentLower) && !individualTagRegex.test(contentLower)) return;
         const tasks = parseTasks(content);
         const lines = content.split('\n');
         let didProcess = false;
@@ -101,6 +103,8 @@ export default class NextProjectTasksPlugin extends Plugin {
     const files = this.app.vault.getMarkdownFiles();
     const tag = (this.settings.projectTag || "#projects").toLowerCase();
     const individualTag = (this.settings.individualTaskTag || "#individualtasks").toLowerCase();
+    const tagRegex = new RegExp(`\\b${tag}\\b`, 'i');
+    const individualTagRegex = new RegExp(`\\b${individualTag}\\b`, 'i');
     // Add priority to the result
     const results: { file: TFile; task: string; priority: number; isProject: boolean }[] = [];
 
@@ -137,8 +141,8 @@ export default class NextProjectTasksPlugin extends Plugin {
     for (const file of files) {
       const content = await this.app.vault.read(file);
       const contentLower = content.toLowerCase();
-      const hasProjectTag = contentLower.includes(tag);
-      const hasIndividualTag = contentLower.includes(individualTag);
+      const hasProjectTag = tagRegex.test(contentLower);
+      const hasIndividualTag = individualTagRegex.test(contentLower);
       if (!hasProjectTag && !hasIndividualTag) continue;
 
       // Get project-level priority

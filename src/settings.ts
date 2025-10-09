@@ -7,8 +7,8 @@ export interface NextProjectTasksSettings {
 }
 
 export const DEFAULT_SETTINGS: NextProjectTasksSettings = {
-    projectTag: "#projects",
-    individualTaskTag: "#individualtasks"
+    projectTag: "projects",
+    individualTaskTag: "individualtasks"
 };
 
 export class NextProjectTasksSettingTab extends PluginSettingTab {

@@ -2,8 +2,8 @@
 
 A powerful Obsidian plugin for managing next actions, project tasks, and individual to-do lists using Markdown task decorations and configurable tags. 
 
-- Focus on the next actionable task in each project note (using the #projects tag).
-- See all eligible tasks from individual task notes (using the #individualtasks tag).
+- Focus on the next actionable task in each project note (using the projects tag).
+- See all eligible tasks from individual task notes (using the individualtasks tag).
 - Supports priority, start dates, due dates, and flexible recurrence syntax.
 - Sidebar view for quick access and completion of tasks across your vault.
 
@@ -13,12 +13,12 @@ A powerful Obsidian plugin for managing next actions, project tasks, and individ
 
 This plugin uses two configurable tags to control which tasks appear in the sidebar:
 
-- **Project Tag** (default: `#projects`):
+- **Project Tag** (default: `projects`):
   - If a note contains this tag, it is treated as a project note.
   - Only the next eligible task from each project note will appear in the sidebar. The next eligible task in a project note is the first task in the note that is not completed. So re-ordering of tasks involves just moving them around. No task dependencies are needed.
   - Project notes are ideal for managing sequential or grouped tasks where you want to focus on the next actionable item.
 
-- **Individual Task Tag** (default: `#individualtasks`):
+- **Individual Task Tag** (default: `individualtasks`):
   - If a note contains this tag, it is treated as an individual task list.
   - All eligible tasks from these notes will appear in the sidebar (not just the next one).
   - This is useful for general to-do lists or notes where you want to see every actionable item at once.
@@ -31,13 +31,13 @@ This plugin uses two configurable tags to control which tasks appear in the side
 
 - Project note (shows only the next eligible task):
   ```
-  #projects
+  projects
   - [ ] Write draft @start(2025-10-08)
   - [ ] Edit draft
   ```
 - Individual task note (shows all eligible tasks):
   ```
-  #individualtasks
+  individualtasks
   - [ ] Buy groceries
   - [ ] Call mom @start(2025-10-10)
   ```
@@ -46,7 +46,7 @@ This plugin uses two configurable tags to control which tasks appear in the side
 
 ## 🆕 Individual Task Notes
 
-You can configure a second tag (default: `#individualtasks`) in the plugin settings. If a note contains this tag, all eligible tasks in that note will appear in the sidebar, regardless of project status. Tasks are still filtered by start date.
+You can configure a second tag (default: `individualtasks`) in the plugin settings. If a note contains this tag, all eligible tasks in that note will appear in the sidebar, regardless of project status. Tasks are still filtered by start date.
 
 **Settings:**
 - `Project Tag`: Only the next task from each note with this tag will appear.
@@ -54,10 +54,10 @@ You can configure a second tag (default: `#individualtasks`) in the plugin setti
 
 **Example:**
 ```
-- [ ] Buy groceries #individualtasks
-- [ ] Call mom #individualtasks @start(2025-10-10)
+- [ ] Buy groceries individualtasks
+- [ ] Call mom individualtasks @start(2025-10-10)
 ```
-If the note contains `#individualtasks`, both tasks will show (unless filtered by start date).
+If the note contains `individualtasks`, both tasks will show (unless filtered by start date).
 # Task Decoration Syntax (TDSL) — Summary
 
 A lightweight syntax for decorating Markdown tasks in Obsidian with metadata
