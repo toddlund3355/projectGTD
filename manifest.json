@@ -1,7 +1,7 @@
 {
   "id": "projectgtd",
   "name": "projectGTD",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.9.14",
   "author": "Todd Lund",
   "description": "Handling of next actions for projects and GTD workflow.",
