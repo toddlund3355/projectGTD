@@ -1,9 +1,11 @@
 {
-  "id": "next-project-tasks",
-  "name": "Next Project Tasks",
-  "version": "0.0.1",
-  "minAppVersion": "1.4.0",
-  "author": "Your Name",
-  "description": "Shows the next unfinished task from each note tagged #projects.",
-  "main": "dist/main.js"
+  "id": "projectGTD",
+  "name": "projectGTD",
+  "version": "1.0.0",
+  "minAppVersion": "1.9.14",
+  "author": "Todd Lund",
+  "description": "Handling of next actions for projects and GTD workflow.",
+  "main": "dist/main.js",
+  "isDesktopOnly": false,
+  "fundingUrl": "https://buymeacoffee.com/toddster"
 }

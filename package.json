@@ -1,6 +1,7 @@
 {
-  "name": "obsidian-next-project-tasks",
-  "version": "0.0.1",
+  "name": "obsidian-projectgtd",
+  "version": "1.0.0",
+  "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "build": "rollup -c",
