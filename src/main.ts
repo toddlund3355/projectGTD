@@ -108,11 +108,20 @@ export default class NextProjectTasksPlugin extends Plugin {
     // Add priority to the result
     const results: { file: TFile; task: string; priority: number; isProject: boolean }[] = [];
 
-    // Helper to extract priority from a string
+    // Use user-configurable priority tags from settings
+    const priorityTags = (this.settings.priorityTags && this.settings.priorityTags.length > 0)
+      ? this.settings.priorityTags.map(t => t.trim().toLowerCase())
+      : ["p1", "p2", "p3", "p4", "p5", "p6", "p7"];
+
+    // Helper to extract priority from a string using priorityTags
     function extractPriority(str: string): number {
-      const match = str.match(/#p([1-7])\b/i);
-      if (match) return parseInt(match[1], 10);
-      return 4; // default priority
+      for (let i = 0; i < priorityTags.length; i++) {
+        const tag = priorityTags[i];
+        // Match as whole word, case-insensitive
+        const regex = new RegExp(`\\b${tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+        if (regex.test(str)) return i + 1;
+      }
+      return Math.ceil(priorityTags.length / 2) || 4; // default to middle priority if not found
     }
 
     // Helper to get local YMD as string
@@ -159,14 +168,22 @@ export default class NextProjectTasksPlugin extends Plugin {
         return true;
       };
 
+      // Helper to check if a string contains any priority tag
+      function containsPriorityTag(str: string): boolean {
+        return priorityTags.some(tag => {
+          const regex = new RegExp(`\\b${tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+          return regex.test(str);
+        });
+      }
+
       if (hasIndividualTag) {
         // Show all eligible tasks
         tasks.filter(eligible).forEach((task) => {
           let taskPriority = extractPriority(task.text);
-          if (!task.text.match(/#p[1-7]\b/i)) {
+          if (!containsPriorityTag(task.text)) {
             taskPriority = projectPriority;
           }
-          if (!taskPriority) taskPriority = 4;
+          if (!taskPriority) taskPriority = Math.ceil(priorityTags.length / 2) || 4;
           const key = file.path + '|' + task.text;
           if (!seen.has(key)) {
             results.push({ file, task: task.text, priority: taskPriority, isProject: false });
@@ -178,10 +195,10 @@ export default class NextProjectTasksPlugin extends Plugin {
         const nextTask = tasks.find(eligible);
         if (nextTask) {
           let taskPriority = extractPriority(nextTask.text);
-          if (!nextTask.text.match(/#p[1-7]\b/i)) {
+          if (!containsPriorityTag(nextTask.text)) {
             taskPriority = projectPriority;
           }
-          if (!taskPriority) taskPriority = 4;
+          if (!taskPriority) taskPriority = Math.ceil(priorityTags.length / 2) || 4;
           const key = file.path + '|' + nextTask.text;
           if (!seen.has(key)) {
             results.push({ file, task: nextTask.text, priority: taskPriority, isProject: true });

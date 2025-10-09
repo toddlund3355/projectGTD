@@ -75,7 +75,7 @@ Decorations can appear anywhere in the line (usually at the end).
 
 Example:
 ```
-- [ ] Replace air filter #p3 @start(2025-10-10) @due(2025-10-14) @recur(7d)
+- [ ] Replace air filter p3 @start(2025-10-10) @due(2025-10-14) @recur(7d)
 ```
 
 ---
@@ -84,12 +84,18 @@ Example:
 
 | Decoration | Syntax | Meaning | Example |
 |-------------|---------|----------|----------|
-| **Priority** | `#p1`–`#p7` | Task importance (1=highest, 7=lowest) | `#p2` |
+| **Priority** | `p1`–`p7` | Task importance (1=highest, 7=lowest) | `p2` |
 | **Start date** | `@start(YYYY-MM-DD)` | When the task becomes active | `@start(2025-10-07)` |
 | **Due date** | `@due(YYYY-MM-DD)` | Deadline for the task | `@due(2025-10-14)` |
 | **Tags** | `#tag` | User-defined labels | `#work`, `#home` |
 | **Recurrence** | `@recur(...)` | Defines how and when a task repeats | see below |
-| **Default priority** |  | If no priority is set on the task or project, #p4 is used | `#p4` |
+| **Default priority** |  | If no priority is set on the task or project, p4 is used | `p4` |
+
+---
+
+## ⚙️ Customizing Priority Tags
+
+You can customize the priority tags (default: p1–p7) in the plugin settings page. Enter a comma-separated list of tags (e.g. pA,pB,pC) to use your own priority scheme. The order determines priority (first = highest).
 
 ---
 
@@ -142,11 +148,11 @@ Example:
 ## 🧩 Example Tasks
 
 ```
-- [ ] Pay rent #p1 @due(2025-11-01) @recur(1m)
-- [ ] Review project plan #p3 @start(2025-10-10) @due(2025-10-15)
-- [ ] Take out trash #p5 @recur(mon,thu)
-- [ ] Pay credit card #p2 @recur(monthly,day=15)
-- [ ] File taxes #p1 @recur(yearly,month=4,day=15)
+- [ ] Pay rent p1 @due(2025-11-01) @recur(1m)
+- [ ] Review project plan p3 @start(2025-10-10) @due(2025-10-15)
+- [ ] Take out trash p5 @recur(mon,thu)
+- [ ] Pay credit card p2 @recur(monthly,day=15)
+- [ ] File taxes p1 @recur(yearly,month=4,day=15)
 ```
 
 # Important Note on Recurring Tasks with Future Start Dates
