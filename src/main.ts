@@ -209,11 +209,20 @@ export default class NextProjectTasksPlugin extends Plugin {
   }
 
   async openFileInMain(file: TFile) {
-    // Always use getLeaf(true) for best cross-platform compatibility
-    const leaf = this.app.workspace.getLeaf(true);
-    if (leaf) {
-      await leaf.openFile(file);
-      console.log("🟢 Opened file in main:", file.path);
+    // Try to find an existing leaf with this file open
+    const leaves = this.app.workspace.getLeavesOfType('markdown');
+    for (const leaf of leaves) {
+      // Check if the view is a MarkdownView and has the file open
+      const view = leaf.view;
+      if (view && typeof view === 'object' && 'file' in view && (view as any).file?.path === file.path) {
+        this.app.workspace.revealLeaf(leaf);
+        return;
+      }
+    }
+    // If not found, open in a new tab
+    const newLeaf = this.app.workspace.getLeaf(true);
+    if (newLeaf) {
+      await newLeaf.openFile(file);
     } else {
       new Notice("Couldn't open file — no editable leaf found.");
     }
