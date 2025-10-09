@@ -5,6 +5,7 @@ import { NextProjectTasksSettingTab, DEFAULT_SETTINGS, NextProjectTasksSettings 
 const VIEW_TYPE = "next-project-tasks-view";
 
 export default class NextProjectTasksPlugin extends Plugin {
+  private isProcessingRecurrence = false;
   private refreshDebounceTimeout: any = null;
   settings: NextProjectTasksSettings;
   async onload() {
@@ -31,6 +32,7 @@ export default class NextProjectTasksPlugin extends Plugin {
     // Listen for file changes to handle recurrence when tasks are checked in the note
     this.registerEvent(
       this.app.vault.on('modify', async (file) => {
+        if (this.isProcessingRecurrence) return;
         if (!(file instanceof TFile) || file.extension !== 'md') return;
         const content = await this.app.vault.read(file);
         const tag = (this.settings.projectTag || "#projects").toLowerCase();
@@ -39,120 +41,19 @@ export default class NextProjectTasksPlugin extends Plugin {
         if (!contentLower.includes(tag) && !contentLower.includes(individualTag)) return;
         const tasks = parseTasks(content);
         const lines = content.split('\n');
-        let changed = false;
-        const today = new Date();
-        const ymd = today.getFullYear() + '-' + (today.getMonth() + 1).toString().padStart(2, '0') + '-' + today.getDate().toString().padStart(2, '0');
+        let didProcess = false;
         for (const task of tasks) {
           if (task.done && task.recur) {
             const line = lines[task.line];
             if (line && line.trim().startsWith('- [x]')) {
-              let shouldProcess = true;
-              const startMatch = line.match(/@start\(([^)]+)\)/i);
-              if (startMatch) {
-                const startDate = startMatch[1];
-                if (startDate > ymd) shouldProcess = false;
-              }
-              if (shouldProcess) {
-                const RECUR_REGEX = /@recur\(([^)]+)\)/i;
-                const START_REGEX = /@start\(([^)]+)\)/i;
-                const recurMatch = line.match(RECUR_REGEX);
-                let nextStart = null;
-                if (recurMatch) {
-                  const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
-                  const monthlyDay = recurMatch[1].match(/^monthly,\s*day=(\d+|last)$/i);
-                  const yearlyDay = recurMatch[1].match(/^yearly,\s*month=(\d{1,2}|[a-z]{3}),\s*day=(\d+|last)$/i);
-                  const weekdayRecur = recurMatch[1].match(/^((?:mon|tue|wed|thu|fri|sat|sun)(?:,(?:mon|tue|wed|thu|fri|sat|sun))*)$/i);
-                  let startDate = new Date();
-                  const startMatch = line.match(START_REGEX);
-                  if (startMatch) {
-                    const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
-                    if (iso) {
-                      startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
-                    }
-                  }
-                  if (interval) {
-                    const n = parseInt(interval[1], 10);
-                    switch (interval[2].toLowerCase()) {
-                      case 'd': startDate.setDate(startDate.getDate() + n); break;
-                      case 'w': startDate.setDate(startDate.getDate() + n * 7); break;
-                      case 'm': startDate.setMonth(startDate.getMonth() + n); break;
-                      case 'y': startDate.setFullYear(startDate.getFullYear() + n); break;
-                    }
-                    nextStart = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
-                  } else if (monthlyDay) {
-                    let year = startDate.getFullYear();
-                    let month = startDate.getMonth() + 1;
-                    if (month === 12) {
-                      year += 1;
-                      month = 1;
-                    } else {
-                      month += 1;
-                    }
-                    let day = 1;
-                    if (monthlyDay[1] === 'last') {
-                      day = new Date(year, month, 0).getDate();
-                    } else {
-                      day = Math.min(parseInt(monthlyDay[1], 10), new Date(year, month, 0).getDate());
-                    }
-                    nextStart = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                  } else if (yearlyDay) {
-                    let year = startDate.getFullYear() + 1;
-                    let monthStr = yearlyDay[1];
-                    let monthNum;
-                    if (/^\d+$/.test(monthStr)) {
-                      monthNum = parseInt(monthStr, 10);
-                    } else {
-                      const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                      monthNum = monthNames.indexOf(monthStr.toLowerCase()) + 1;
-                    }
-                    let day = 1;
-                    if (yearlyDay[2] === 'last') {
-                      day = new Date(year, monthNum, 0).getDate();
-                    } else {
-                      day = Math.min(parseInt(yearlyDay[2], 10), new Date(year, monthNum, 0).getDate());
-                    }
-                    nextStart = `${year}-${monthNum.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                  } else if (weekdayRecur) {
-                    const weekdays = weekdayRecur[1].split(',').map(w => w.trim().toLowerCase());
-                    const weekdayMap = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
-                    let minDiff = 8;
-                    let nextDate = null;
-                    const currentDay = startDate.getDay();
-                    for (const w of weekdays) {
-                      const targetDay = weekdayMap[w];
-                      if (typeof targetDay === 'number') {
-                        let diff = (targetDay - currentDay + 7) % 7;
-                        if (diff === 0) diff = 7;
-                        if (diff < minDiff) {
-                          minDiff = diff;
-                          nextDate = new Date(startDate);
-                          nextDate.setDate(startDate.getDate() + diff);
-                        }
-                      }
-                    }
-                    if (nextDate) {
-                      nextStart = `${nextDate.getFullYear()}-${(nextDate.getMonth() + 1).toString().padStart(2, '0')}-${nextDate.getDate().toString().padStart(2, '0')}`;
-                    }
-                  }
-                  let newLine = line.replace("- [x]", "- [ ]");
-                  if (nextStart) {
-                    if (line.match(START_REGEX)) {
-                      newLine = newLine.replace(START_REGEX, `@start(${nextStart})`);
-                    } else {
-                      newLine = newLine.trimEnd() + ` @start(${nextStart})`;
-                    }
-                  }
-                  lines[task.line] = newLine;
-                  changed = true;
-                }
-              }
+              this.isProcessingRecurrence = true;
+              await this.markTaskDone(file, line);
+              this.isProcessingRecurrence = false;
+              didProcess = true;
             }
           }
         }
-        if (changed) {
-          await this.app.vault.modify(file, lines.join('\n'));
-        }
-        // Debounce sidebar refresh to avoid duplicate tasks from rapid file changes
+        // Always refresh sidebar if a relevant file is modified
         if (this.refreshDebounceTimeout) {
           clearTimeout(this.refreshDebounceTimeout);
         }
@@ -325,7 +226,8 @@ export default class NextProjectTasksPlugin extends Plugin {
     const START_REGEX = /@start\(([^)]+)\)/i;
 
     let updated = lines.map((line) => {
-      if (line.trim().startsWith("- [ ]") && line.includes(taskText)) {
+      // Accept both checked and unchecked lines for recurrence
+      if ((line.trim().startsWith("- [ ]") || line.trim().startsWith("- [x]")) && line.includes(taskText)) {
         // Check for recurrence
         const recurMatch = line.match(RECUR_REGEX);
         if (recurMatch) {
@@ -337,25 +239,33 @@ export default class NextProjectTasksPlugin extends Plugin {
           const weekdayRecur = recurMatch[1].match(/^((?:mon|tue|wed|thu|fri|sat|sun)(?:,(?:mon|tue|wed|thu|fri|sat|sun))*)$/i);
 
           if (interval) {
-            // ...existing code for interval...
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
             if (startMatch) {
               const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
               if (iso) {
-                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
+                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00Z`);
               }
             }
-            const n = parseInt(interval[1], 10);
-            switch (interval[2].toLowerCase()) {
-              case 'd': startDate.setDate(startDate.getDate() + n); break;
-              case 'w': startDate.setDate(startDate.getDate() + n * 7); break;
-              case 'm': startDate.setMonth(startDate.getMonth() + n); break;
-              case 'y': startDate.setFullYear(startDate.getFullYear() + n); break;
+            // Normalize both dates to UTC midnight
+            function toUTCMidnight(d: Date) {
+              return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
             }
-            nextStart = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
+            startDate = toUTCMidnight(startDate);
+            const n = parseInt(interval[1], 10);
+            const now = new Date();
+            const today = toUTCMidnight(now);
+            // Advance until strictly after today (UTC)
+            while (startDate <= today) {
+              switch (interval[2].toLowerCase()) {
+                case 'd': startDate.setUTCDate(startDate.getUTCDate() + n); break;
+                case 'w': startDate.setUTCDate(startDate.getUTCDate() + n * 7); break;
+                case 'm': startDate.setUTCMonth(startDate.getUTCMonth() + n); break;
+                case 'y': startDate.setUTCFullYear(startDate.getUTCFullYear() + n); break;
+              }
+            }
+            nextStart = `${startDate.getUTCFullYear()}-${(startDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${startDate.getUTCDate().toString().padStart(2, '0')}`;
           } else if (monthlyDay) {
-            // ...existing code for monthlyDay...
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
             if (startMatch) {
@@ -380,7 +290,6 @@ export default class NextProjectTasksPlugin extends Plugin {
             }
             nextStart = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
           } else if (yearlyDay) {
-            // ...existing code for yearlyDay...
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
             if (startMatch) {
@@ -389,7 +298,7 @@ export default class NextProjectTasksPlugin extends Plugin {
                 startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
               }
             }
-            let year = startDate.getFullYear() + 1; // always next year
+            let year = startDate.getFullYear() + 1;
             let monthStr = yearlyDay[1];
             let monthNum: number;
             if (/^\d+$/.test(monthStr)) {
@@ -406,11 +315,8 @@ export default class NextProjectTasksPlugin extends Plugin {
             }
             nextStart = `${year}-${monthNum.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
           } else if (weekdayRecur) {
-            // ...new code for weekday recurrence...
-            // Parse weekdays
             const weekdays = weekdayRecur[1].split(',').map(w => w.trim().toLowerCase());
             const weekdayMap = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
-            // Find current start date (or use today)
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
             if (startMatch) {
@@ -419,15 +325,14 @@ export default class NextProjectTasksPlugin extends Plugin {
                 startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
               }
             }
-            // Find the soonest next weekday
-            let minDiff = 8; // max days in week + 1
+            let minDiff = 8;
             let nextDate = null;
-            const currentDay = startDate.getDay(); // 0=Sun, 1=Mon, ...
+            const currentDay = startDate.getDay();
             for (const w of weekdays) {
               const targetDay = weekdayMap[w];
               if (typeof targetDay === 'number') {
                 let diff = (targetDay - currentDay + 7) % 7;
-                if (diff === 0) diff = 7; // always go to next occurrence
+                if (diff === 0) diff = 7;
                 if (diff < minDiff) {
                   minDiff = diff;
                   nextDate = new Date(startDate);
@@ -440,8 +345,7 @@ export default class NextProjectTasksPlugin extends Plugin {
             }
           }
           // Mark as uncompleted and update @start
-          let newLine = line.replace("- [ ]", "- [ ]"); // keep as uncompleted
-          // Replace or add @start(...)
+          let newLine = line.replace("- [ ]", "- [ ]").replace("- [x]", "- [ ]"); // always reset to unchecked
           if (nextStart) {
             if (line.match(START_REGEX)) {
               newLine = newLine.replace(START_REGEX, `@start(${nextStart})`);
@@ -452,7 +356,7 @@ export default class NextProjectTasksPlugin extends Plugin {
           return newLine;
         } else {
           // Not recurring: mark as done
-          return line.replace("- [ ]", "- [x]");
+          return line.replace("- [ ]", "- [x]").replace("- [x]", "- [x]");
         }
       }
       return line;

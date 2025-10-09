@@ -140,3 +140,11 @@ Example:
 - [ ] File taxes #p1 @recur(yearly,month=4,day=15)
 ```
 
+# Important Note on Recurring Tasks with Future Start Dates
+
+If you complete (check off) a recurring task that has a future start date (e.g., `@start(YYYY-MM-DD)` where the date is after today), the plugin will immediately uncheck the task and reschedule its start date according to the recurrence rule. This means the task will remain unchecked and its @start will be advanced, so it will disappear from the sidebar until its new start date arrives.
+
+This behavior ensures that recurring tasks are always scheduled for the next eligible date, even if completed early. If you want a different behavior, please adjust your workflow or let us know your use case.
+
+---
+
