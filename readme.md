@@ -89,6 +89,7 @@ Example:
 | **Due date** | `@due(YYYY-MM-DD)` | Deadline for the task | `@due(2025-10-14)` |
 | **Tags** | `#tag` | User-defined labels | `#work`, `#home` |
 | **Recurrence** | `@recur(...)` | Defines how and when a task repeats | see below |
+| **Default priority** |  | If no priority is set on the task or project, #p4 is used | `#p4` |
 
 ---
 
