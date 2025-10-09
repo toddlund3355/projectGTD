@@ -1,3 +1,49 @@
+# projectGTD
+
+A powerful Obsidian plugin for managing next actions, project tasks, and individual to-do lists using Markdown task decorations and configurable tags. 
+
+- Focus on the next actionable task in each project note (using the #projects tag).
+- See all eligible tasks from individual task notes (using the #individualtasks tag).
+- Supports priority, start dates, due dates, and flexible recurrence syntax.
+- Sidebar view for quick access and completion of tasks across your vault.
+
+---
+
+# Project Tag and Individual Task Tag Usage
+
+This plugin uses two configurable tags to control which tasks appear in the sidebar:
+
+- **Project Tag** (default: `#projects`):
+  - If a note contains this tag, it is treated as a project note.
+  - Only the next eligible task from each project note will appear in the sidebar. The next eligible task in a project note is the first task in the note that is not completed. So re-ordering of tasks involves just moving them around. No task dependencies are needed.
+  - Project notes are ideal for managing sequential or grouped tasks where you want to focus on the next actionable item.
+
+- **Individual Task Tag** (default: `#individualtasks`):
+  - If a note contains this tag, it is treated as an individual task list.
+  - All eligible tasks from these notes will appear in the sidebar (not just the next one).
+  - This is useful for general to-do lists or notes where you want to see every actionable item at once.
+
+**Eligibility:**
+- A task is eligible if it is not completed and its start date (if present) is today or earlier.
+- Recurring tasks will be rescheduled with a future start date when checked, and will disappear from the sidebar until their new start date arrives.
+
+**Example:**
+
+- Project note (shows only the next eligible task):
+  ```
+  #projects
+  - [ ] Write draft @start(2025-10-08)
+  - [ ] Edit draft
+  ```
+- Individual task note (shows all eligible tasks):
+  ```
+  #individualtasks
+  - [ ] Buy groceries
+  - [ ] Call mom @start(2025-10-10)
+  ```
+
+---
+
 ## 🆕 Individual Task Notes
 
 You can configure a second tag (default: `#individualtasks`) in the plugin settings. If a note contains this tag, all eligible tasks in that note will appear in the sidebar, regardless of project status. Tasks are still filtered by start date.
@@ -94,25 +140,3 @@ Example:
 - [ ] File taxes #p1 @recur(yearly,month=4,day=15)
 ```
 
----
-
-## 🧮 Suggested Normalized JSON Schema
-
-```json
-{
-  "title": "Take out trash",
-  "completed": false,
-  "priority": 5,
-  "start": null,
-  "due": null,
-  "recur": {
-    "mode": "weekly",
-    "days": ["mon", "thu"]
-  }
-}
-```
-
----
-
-This file fully documents the TDSL specification for your plugin.
-You can save it as `TASK_DECORATION_SPEC.md` or feed it to Copilot to assist in parsing logic, syntax highlighting, or autocomplete development.

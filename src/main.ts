@@ -304,20 +304,8 @@ export default class NextProjectTasksPlugin extends Plugin {
   }
 
   async openFileInMain(file: TFile) {
-    const workspace = this.app.workspace;
-    let leaf: WorkspaceLeaf | null = null;
-
-    // Try to find an existing markdown leaf in the main workspace
-    const leaves = workspace.getLeavesOfType("markdown");
-    if (leaves.length > 0) {
-      leaf = leaves[0];
-    }
-
-    // If none exist, create a new one in the main workspace
-    if (!leaf) {
-      leaf = workspace.getLeaf(true); // true = force main area
-    }
-
+    // Always use getLeaf(true) for best cross-platform compatibility
+    const leaf = this.app.workspace.getLeaf(true);
     if (leaf) {
       await leaf.openFile(file);
       console.log("🟢 Opened file in main:", file.path);
@@ -582,7 +570,7 @@ class NextTasksView extends ItemView {
 
     // Title and refresh button (always update header)
     const header = container.createEl("div", { cls: "next-tasks-header" });
-    header.createEl("h2", { text: `Next Tasks (${this.plugin.settings.projectTag})` });
+    header.createEl("h2", { text: "Next Actions" });
     const refreshBtn = header.createEl("button", { text: "🔄 Refresh" });
     refreshBtn.addEventListener("click", () => this.renderTasks());
 
