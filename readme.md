@@ -99,6 +99,14 @@ Example:
 @recur(7d)
 @recur(3w)
 @recur(1m)
+```
+
+### 2. Fixed start + interval (NEW)
+```
+@recur(from:2025-10-12,every:3m)
+```
+- Repeats every N days/weeks/months/years from a fixed start date, regardless of when the task is completed.
+- Example: `@recur(from:2025-10-12,every:3m)` will recur on Jan 12, Apr 12, Jul 12, Oct 12, etc.
 
 ### 3. Weekday-based (absolute)
 ```

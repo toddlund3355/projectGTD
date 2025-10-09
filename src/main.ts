@@ -246,12 +246,34 @@ export default class NextProjectTasksPlugin extends Plugin {
         if (recurMatch) {
           let nextStart = null;
           // Recurrence pattern matches
+          const fixedStart = recurMatch[1].match(/^from:(\d{4}-\d{2}-\d{2}),\s*every:(\d+)([dwmy])$/i);
           const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
           const monthlyDay = recurMatch[1].match(/^monthly,\s*day=(\d+|last)$/i);
           const yearlyDay = recurMatch[1].match(/^yearly,\s*month=(\d{1,2}|[a-z]{3}),\s*day=(\d+|last)$/i);
           const weekdayRecur = recurMatch[1].match(/^((?:mon|tue|wed|thu|fri|sat|sun)(?:,(?:mon|tue|wed|thu|fri|sat|sun))*)$/i);
 
-          if (interval) {
+          function toUTCMidnight(d: Date) {
+            return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+          }
+
+          if (fixedStart) {
+            // Fixed start + interval: from:YYYY-MM-DD,every:Nd
+            let startDate = new Date(`${fixedStart[1]}T00:00:00Z`);
+            startDate = toUTCMidnight(startDate);
+            const n = parseInt(fixedStart[2], 10);
+            const unit = fixedStart[3].toLowerCase();
+            const now = new Date();
+            const today = toUTCMidnight(now);
+            while (startDate <= today) {
+              switch (unit) {
+                case 'd': startDate.setUTCDate(startDate.getUTCDate() + n); break;
+                case 'w': startDate.setUTCDate(startDate.getUTCDate() + n * 7); break;
+                case 'm': startDate.setUTCMonth(startDate.getUTCMonth() + n); break;
+                case 'y': startDate.setUTCFullYear(startDate.getUTCFullYear() + n); break;
+              }
+            }
+            nextStart = `${startDate.getUTCFullYear()}-${(startDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${startDate.getUTCDate().toString().padStart(2, '0')}`;
+          } else if (interval) {
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
             if (startMatch) {
@@ -260,15 +282,10 @@ export default class NextProjectTasksPlugin extends Plugin {
                 startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00Z`);
               }
             }
-            // Normalize both dates to UTC midnight
-            function toUTCMidnight(d: Date) {
-              return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-            }
             startDate = toUTCMidnight(startDate);
             const n = parseInt(interval[1], 10);
             const now = new Date();
             const today = toUTCMidnight(now);
-            // Advance until strictly after today (UTC)
             while (startDate <= today) {
               switch (interval[2].toLowerCase()) {
                 case 'd': startDate.setUTCDate(startDate.getUTCDate() + n); break;
