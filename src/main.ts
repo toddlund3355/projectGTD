@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Plugin, TFile } from 'obsidian';
+import { App, Modal, Notice, Plugin, TFile, MarkdownView } from 'obsidian';
 import { parseTasks } from './taskUtils';
 import { NextProjectTasksSettingTab, DEFAULT_SETTINGS, NextProjectTasksSettings } from './settings';
 
@@ -236,12 +236,26 @@ export default class NextProjectTasksPlugin extends Plugin {
         return;
       }
     }
-    // If not found, open in a new tab
-    const newLeaf = this.app.workspace.getLeaf(true);
-    if (newLeaf) {
-      await newLeaf.openFile(file);
+
+    // Try to get the active leaf first (normal Obsidian behavior)
+    let targetLeaf = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf;
+
+    // If no active markdown leaf, try to get any available leaf
+    if (!targetLeaf) {
+      targetLeaf = this.app.workspace.getLeaf(false); // Try to reuse existing leaf
+    }
+
+    // If still no leaf, create a new one
+    if (!targetLeaf) {
+      targetLeaf = this.app.workspace.getLeaf(true);
+    }
+
+    if (targetLeaf) {
+      await targetLeaf.openFile(file);
+      // Force activation of the leaf - critical for Android
+      this.app.workspace.setActiveLeaf(targetLeaf, { focus: true });
     } else {
-      new Notice("Couldn't open file — no editable leaf found.");
+      new Notice("Couldn't open file — no leaf available.");
     }
   }
 
