@@ -310,22 +310,27 @@ export default class NextProjectTasksPlugin extends Plugin {
             if (startMatch) {
               const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
               if (iso) {
-                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00Z`);
+                // Parse as local date, not UTC
+                startDate = new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]));
               }
             }
-            startDate = toUTCMidnight(startDate);
+
             const n = parseInt(interval[1], 10);
             const now = new Date();
-            const today = toUTCMidnight(now);
-            while (startDate <= today) {
-              switch (interval[2].toLowerCase()) {
-                case 'd': startDate.setUTCDate(startDate.getUTCDate() + n); break;
-                case 'w': startDate.setUTCDate(startDate.getUTCDate() + n * 7); break;
-                case 'm': startDate.setUTCMonth(startDate.getUTCMonth() + n); break;
-                case 'y': startDate.setUTCFullYear(startDate.getUTCFullYear() + n); break;
-              }
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            // Normalize startDate to local midnight
+            startDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+
+            // Add the interval to get the next occurrence
+            switch (interval[2].toLowerCase()) {
+              case 'd': startDate.setDate(startDate.getDate() + n); break;
+              case 'w': startDate.setDate(startDate.getDate() + n * 7); break;
+              case 'm': startDate.setMonth(startDate.getMonth() + n); break;
+              case 'y': startDate.setFullYear(startDate.getFullYear() + n); break;
             }
-            nextStart = `${startDate.getUTCFullYear()}-${(startDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${startDate.getUTCDate().toString().padStart(2, '0')}`;
+
+            nextStart = `${startDate.getFullYear()}-${(startDate.getMonth() + 1).toString().padStart(2, '0')}-${startDate.getDate().toString().padStart(2, '0')}`;
           } else if (monthlyDay) {
             let startDate = new Date();
             const startMatch = line.match(START_REGEX);
