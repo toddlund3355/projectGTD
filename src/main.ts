@@ -154,8 +154,31 @@ export default class NextProjectTasksPlugin extends Plugin {
       const hasIndividualTag = individualTagRegex.test(contentLower);
       if (!hasProjectTag && !hasIndividualTag) continue;
 
-      // Get project-level priority
-      const projectPriority = extractPriority(content);
+      // Helper to extract priority from YAML frontmatter tags using Obsidian API
+      function extractFrontmatterPriority(file: TFile): number | null {
+        const fileCache = this.app.metadataCache.getFileCache(file);
+        const frontmatterTags = fileCache?.frontmatter?.tags;
+
+        if (!frontmatterTags) {
+          console.log(`No frontmatter tags found in ${file.basename}`);
+          return null;
+        }
+
+        console.log(`Frontmatter tags in ${file.basename}:`, frontmatterTags);
+
+        // Handle both array format and single tag format
+        const tagsArray = Array.isArray(frontmatterTags) ? frontmatterTags : [frontmatterTags];
+        const tagsString = tagsArray.join(' ');
+
+        console.log(`Processed tags string in ${file.basename}:`, tagsString);
+
+        const priority = extractPriority(tagsString);
+        console.log(`Extracted priority from ${file.basename}:`, priority);
+        return priority;
+      }
+
+      // Get project-level priority (only for project notes, from frontmatter)
+      const projectPriority = hasProjectTag ? extractFrontmatterPriority.call(this, file) : null;
       const tasks = parseTasks(content); // from your taskUtils.ts
 
       // Helper: eligible (not done, not future)
@@ -177,12 +200,9 @@ export default class NextProjectTasksPlugin extends Plugin {
       }
 
       if (hasIndividualTag) {
-        // Show all eligible tasks
+        // Show all eligible tasks - no note-level priority for individual task notes
         tasks.filter(eligible).forEach((task) => {
           let taskPriority = extractPriority(task.text);
-          if (!containsPriorityTag(task.text)) {
-            taskPriority = projectPriority;
-          }
           if (!taskPriority) taskPriority = Math.ceil(priorityTags.length / 2) || 4;
           const key = file.path + '|' + task.text;
           if (!seen.has(key)) {
@@ -191,11 +211,11 @@ export default class NextProjectTasksPlugin extends Plugin {
           }
         });
       } else if (hasProjectTag) {
-        // Show only the next eligible task
+        // Show only the next eligible task - use note-level priority from frontmatter if task has no priority
         const nextTask = tasks.find(eligible);
         if (nextTask) {
           let taskPriority = extractPriority(nextTask.text);
-          if (!containsPriorityTag(nextTask.text)) {
+          if (!containsPriorityTag(nextTask.text) && projectPriority) {
             taskPriority = projectPriority;
           }
           if (!taskPriority) taskPriority = Math.ceil(priorityTags.length / 2) || 4;
@@ -544,8 +564,21 @@ class NextTasksView extends ItemView {
 
     let results = await this.plugin.getNextTasks();
 
+    // Debug logging to see priorities
+    console.log("Tasks before sorting:", results.map(r => ({
+      task: r.task.substring(0, 30) + "...",
+      priority: r.priority,
+      file: r.file.basename
+    })));
+
     // Sort by priority (lower number = higher priority)
     results = results.sort((a, b) => a.priority - b.priority);
+
+    console.log("Tasks after sorting:", results.map(r => ({
+      task: r.task.substring(0, 30) + "...",
+      priority: r.priority,
+      file: r.file.basename
+    })));
 
     const ul = container.createEl("ul");
 

@@ -17,27 +17,34 @@ This plugin uses two configurable tags to control which tasks appear in the side
   - If a note contains this tag, it is treated as a project note.
   - Only the next eligible task from each project note will appear in the sidebar. The next eligible task in a project note is the first task in the note that is not completed. So re-ordering of tasks involves just moving them around. No task dependencies are needed.
   - Project notes are ideal for managing sequential or grouped tasks where you want to focus on the next actionable item.
+  - **Note-level priority**: Project notes can have a priority tag in their frontmatter `tags` property. Tasks without explicit priority tags will inherit this note-level priority.
 
 - **Individual Task Tag** (default: `individualtasks`):
   - If a note contains this tag, it is treated as an individual task list.
   - All eligible tasks from these notes will appear in the sidebar (not just the next one).
   - This is useful for general to-do lists or notes where you want to see every actionable item at once.
+  - **No note-level priority**: Individual task notes do not use note-level priorities. Each task uses its own explicit priority or the default.
 
 **Eligibility:**
 - A task is eligible if it is not completed and its start date (if present) is today or earlier.
 - Recurring tasks will be rescheduled with a future start date when checked, and will disappear from the sidebar until their new start date arrives.
 
-**Example:**
+**Examples:**
 
-- Project note (shows only the next eligible task):
+- Project note with note-level priority:
+  ```yaml
+  ---
+  tags: 
+    - projects
+    - p2
+  ---
+  
+  - [ ] Write draft @start(2025-10-08)  # inherits p2 from note
+  - [ ] Edit draft #p1                  # uses its own p1 priority
   ```
-  projects
-  - [ ] Write draft @start(2025-10-08)
-  - [ ] Edit draft
+- Individual task note (no note-level priority):
   ```
-- Individual task note (shows all eligible tasks):
-  ```
-  individualtasks
+  #individualtasks
   - [ ] Buy groceries
   - [ ] Call mom @start(2025-10-10)
   ```
@@ -54,10 +61,10 @@ You can configure a second tag (default: `individualtasks`) in the plugin settin
 
 **Example:**
 ```
-- [ ] Buy groceries individualtasks
-- [ ] Call mom individualtasks @start(2025-10-10)
+- [ ] Buy groceries #individualtasks
+- [ ] Call mom #individualtasks @start(2025-10-10)
 ```
-If the note contains `individualtasks`, both tasks will show (unless filtered by start date).
+If the note contains `#individualtasks`, both tasks will show (unless filtered by start date).
 # Task Decoration Syntax (TDSL) — Summary
 
 A lightweight syntax for decorating Markdown tasks in Obsidian with metadata
@@ -89,7 +96,62 @@ Example:
 | **Due date** | `@due(YYYY-MM-DD)` | Deadline for the task | `@due(2025-10-14)` |
 | **Tags** | `#tag` | User-defined labels | `#work`, `#home` |
 | **Recurrence** | `@recur(...)` | Defines how and when a task repeats | see below |
-| **Default priority** |  | If no priority is set on the task or project, p4 is used | `p4` |
+
+---
+
+## 📋 Priority Inheritance
+
+**Task-level priority** (highest precedence):
+- Tasks with explicit priority tags (e.g., `p1`, `p3`) always use their own priority.
+
+**Note-level priority** (for project notes only):
+- **IMPORTANT**: Note-level priority must be specified in the YAML frontmatter `tags` property.
+- Only works for project notes (notes containing the `projects` tag).
+- Individual task notes do not support note-level priority.
+- Tasks without explicit priority tags inherit this note-level priority.
+
+**Default priority** (fallback):
+- If no task-level or note-level priority is found, uses the middle priority (p4 for default p1–p7 scheme).
+
+**Where to place note-level priority:**
+```yaml
+---
+tags: 
+  - projects
+  - p3        # ← Note-level priority goes here in frontmatter
+---
+
+# Your Project Title
+
+- [ ] First task        # inherits p3 from frontmatter
+- [ ] Second task #p1   # uses p1 (overrides note's p3)
+- [ ] Third task        # inherits p3 from frontmatter
+```
+
+**Note-level priority will NOT work if placed:**
+- In the note body (e.g., `p3` in regular text)
+- As an inline tag in content (e.g., `#p3`)
+- In task lines themselves (that's task-level priority)
+
+**Supported frontmatter formats:**
+```yaml
+# Array format (recommended)
+---
+tags:
+  - projects
+  - p2
+---
+
+# Inline format
+---
+tags: projects p2
+---
+
+# Bracket format
+---
+tags: [projects, p2]
+---
+```
 
 ---
 
