@@ -1,5 +1,5 @@
 import { App, Modal, Notice, Plugin, TFile, MarkdownView } from 'obsidian';
-import { parseTasks } from './taskUtils';
+import { parseTasks, parseTasksWithAPI } from './taskUtils';
 import { NextProjectTasksSettingTab, DEFAULT_SETTINGS, NextProjectTasksSettings } from './settings';
 
 const VIEW_TYPE = "next-project-tasks-view";
@@ -41,7 +41,7 @@ export default class NextProjectTasksPlugin extends Plugin {
         const tagRegex = new RegExp(`\\b${tag}\\b`, 'i');
         const individualTagRegex = new RegExp(`\\b${individualTag}\\b`, 'i');
         if (!tagRegex.test(contentLower) && !individualTagRegex.test(contentLower)) return;
-        const tasks = parseTasks(content);
+        const tasks = await parseTasksWithAPI(file, this.app);
         const lines = content.split('\n');
         let didProcess = false;
         for (const task of tasks) {
@@ -179,7 +179,7 @@ export default class NextProjectTasksPlugin extends Plugin {
 
       // Get project-level priority (only for project notes, from frontmatter)
       const projectPriority = hasProjectTag ? extractFrontmatterPriority.call(this, file) : null;
-      const tasks = parseTasks(content); // from your taskUtils.ts
+      const tasks = await parseTasksWithAPI(file, this.app); // Use Obsidian's native API
 
       // Helper: eligible (not done, not future)
       const eligible = (t) => {
@@ -301,9 +301,7 @@ export default class NextProjectTasksPlugin extends Plugin {
           const interval = recurMatch[1].match(/^(\d+)([dwmy])$/i);
           const monthlyDay = recurMatch[1].match(/^monthly,\s*day=(\d+|last)$/i);
           const yearlyDay = recurMatch[1].match(/^yearly,\s*month=(\d{1,2}|[a-z]{3}),\s*day=(\d+|last)$/i);
-          const weekdayRecur = recurMatch[1].match(/^((?:mon|tue|wed|thu|fri|sat|sun)(?:,(?:mon|tue|wed|thu|fri|sat|sun))*)$/i);
-
-          function toUTCMidnight(d: Date) {
+          const weekdayRecur = recurMatch[1].match(/^((?:mon|tue|wed|thu|fri|sat|sun)(?:,(?:mon|tue|wed|thu|fri|sat|sun))*)$/i); function toUTCMidnight(d: Date) {
             return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
           }
 
@@ -403,26 +401,22 @@ export default class NextProjectTasksPlugin extends Plugin {
           } else if (weekdayRecur) {
             const weekdays = weekdayRecur[1].split(',').map(w => w.trim().toLowerCase());
             const weekdayMap = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
-            let startDate = new Date();
-            const startMatch = line.match(START_REGEX);
-            if (startMatch) {
-              const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
-              if (iso) {
-                startDate = new Date(`${iso[1]}-${iso[2]}-${iso[3]}`);
-              }
-            }
+
+            // Always calculate from today (completion date), not from task's current start date
+            const today = new Date();
+            const currentDay = today.getDay();
+
             let minDiff = 8;
             let nextDate = null;
-            const currentDay = startDate.getDay();
+
             for (const w of weekdays) {
               const targetDay = weekdayMap[w];
               if (typeof targetDay === 'number') {
                 let diff = (targetDay - currentDay + 7) % 7;
-                if (diff === 0) diff = 7;
+                if (diff === 0) diff = 7; // If today is the target day, schedule for next week
                 if (diff < minDiff) {
                   minDiff = diff;
-                  nextDate = new Date(startDate);
-                  nextDate.setDate(startDate.getDate() + diff);
+                  nextDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
                 }
               }
             }
