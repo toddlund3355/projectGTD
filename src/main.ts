@@ -594,12 +594,21 @@ class NextTasksView extends ItemView {
       });
 
       checkbox.addEventListener("change", async () => {
-        if (checkbox.checked) {
-          await this.plugin.markTaskDone(file, task);
-        } else {
-          await this.plugin.markTaskUndone(file, task);
+        // Disable checkbox to prevent rapid clicking while processing
+        checkbox.disabled = true;
+
+        try {
+          if (checkbox.checked) {
+            await this.plugin.markTaskDone(file, task);
+          } else {
+            await this.plugin.markTaskUndone(file, task);
+          }
+          // Don't call renderTasks() here - the file modification handler will refresh automatically
+          // On Android, add a small delay to ensure file operations complete before re-enabling
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } finally {
+          checkbox.disabled = false;
         }
-        await this.renderTasks(); // Refresh regardless of state
       });
     });
   }
