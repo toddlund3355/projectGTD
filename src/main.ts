@@ -211,18 +211,31 @@ export default class NextProjectTasksPlugin extends Plugin {
           }
         });
       } else if (hasProjectTag) {
-        // Show only the next eligible task - use note-level priority from frontmatter if task has no priority
-        const nextTask = tasks.find(eligible);
-        if (nextTask) {
-          let taskPriority = extractPriority(nextTask.text);
-          if (!containsPriorityTag(nextTask.text) && projectPriority) {
-            taskPriority = projectPriority;
+        // Find the first incomplete task (don't skip future-start tasks)
+        const firstIncomplete = tasks.find(t => !t.done);
+        
+        if (firstIncomplete) {
+          // Check if the first incomplete task has a future start date
+          let isFutureStart = false;
+          if (firstIncomplete.start) {
+            const startYMD = parseYMD(firstIncomplete.start);
+            if (startYMD && startYMD > todayYMD) {
+              isFutureStart = true;
+            }
           }
-          if (!taskPriority) taskPriority = Math.ceil(priorityTags.length / 2) || 4;
-          const key = file.path + '|' + nextTask.text;
-          if (!seen.has(key)) {
-            results.push({ file, task: nextTask.text, priority: taskPriority, isProject: true });
-            seen.add(key);
+          
+          // If first incomplete task has future start, exclude entire project
+          if (!isFutureStart) {
+            let taskPriority = extractPriority(firstIncomplete.text);
+            if (!containsPriorityTag(firstIncomplete.text) && projectPriority) {
+              taskPriority = projectPriority;
+            }
+            if (!taskPriority) taskPriority = Math.ceil(priorityTags.length / 2) || 4;
+            const key = file.path + '|' + firstIncomplete.text;
+            if (!seen.has(key)) {
+              results.push({ file, task: firstIncomplete.text, priority: taskPriority, isProject: true });
+              seen.add(key);
+            }
           }
         }
       }
