@@ -336,22 +336,11 @@ export default class NextProjectTasksPlugin extends Plugin {
             }
             nextStart = `${startDate.getUTCFullYear()}-${(startDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${startDate.getUTCDate().toString().padStart(2, '0')}`;
           } else if (interval) {
-            let startDate = new Date();
-            const startMatch = line.match(START_REGEX);
-            if (startMatch) {
-              const iso = startMatch[1].match(/^(\d{4})-(\d{2})-(\d{2})/);
-              if (iso) {
-                // Parse as local date, not UTC
-                startDate = new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]));
-              }
-            }
-
+            // For interval-based recurrence, always calculate from completion date (today)
             const n = parseInt(interval[1], 10);
             const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-            // Normalize startDate to local midnight
-            startDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+            // Start from today's date (completion date)
+            const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
             // Add the interval to get the next occurrence
             switch (interval[2].toLowerCase()) {
